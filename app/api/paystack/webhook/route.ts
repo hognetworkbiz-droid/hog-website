@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { supabaseServer } from '@/lib/supabaseServer';
 import crypto from 'crypto';
-import { database } from '@/lib/firebase';
-import { ref, update } from 'firebase/database';
 
 const PAYSTACK_SECRET = process.env.PAYSTACK_SECRET_KEY;
 
@@ -28,17 +27,17 @@ export async function POST(req: NextRequest) {
     if (event.event === 'charge.success') {
       const { reference, customer, amount } = event.data;
 
-      // Update Firebase with transaction
-      await update(ref(database, `transactions/${reference}`), {
-        status: 'completed',
-        amount,
-        customer_email: customer.email,
-        timestamp: new Date().toISOString(),
-      });
+      await supabaseServer
+        .from('transactions')
+        .update({
+          status: 'completed',
+        })
+        .eq('reference', reference);
     }
 
     return NextResponse.json({ status: 'ok' });
   } catch (error) {
+    console.error('Webhook error:', error);
     return NextResponse.json(
       { error: 'Webhook processing failed' },
       { status: 500 }
