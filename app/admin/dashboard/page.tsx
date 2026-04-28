@@ -3,10 +3,28 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
+interface Voucher {
+  id: string;
+  voucher_code: string;
+  data_amount: string;
+  price: number;
+  status: string;
+  balance?: number;
+}
+
+interface Transaction {
+  id: string;
+  reference: string;
+  amount: number;
+  status: string;
+  created_at: string;
+}
+
 export default function AdminDashboard() {
-  const [vouchers, setVouchers] = useState([]);
-  const [transactions, setTransactions] = useState([]);
+  const [vouchers, setVouchers] = useState<Voucher[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [checkingBalance, setCheckingBalance] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -17,7 +35,7 @@ export default function AdminDashboard() {
     }
 
     fetchData();
-  }, []);
+  }, [router]);
 
   const fetchData = async () => {
     try {
@@ -30,15 +48,41 @@ export default function AdminDashboard() {
       });
 
       if (vouchersRes.ok) {
-        setVouchers(await vouchersRes.json());
+        const data = await vouchersRes.json();
+        setVouchers(data);
       }
       if (transactionsRes.ok) {
-        setTransactions(await transactionsRes.json());
+        const data = await transactionsRes.json();
+        setTransactions(data);
       }
     } catch (error) {
       console.error('Failed to fetch data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const checkVoucherBalance = async (voucherCode: string, index: number) => {
+    setCheckingBalance(voucherCode);
+    try {
+      const res = await fetch('/api/omada/vouchers/balance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ voucherCode }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setVouchers((prev) =>
+          prev.map((v, i) =>
+            i === index ? { ...v, balance: data.balance } : v
+          )
+        );
+      }
+    } catch (error) {
+      console.error('Failed to check balance:', error);
+    } finally {
+      setCheckingBalance(null);
     }
   };
 
@@ -96,24 +140,28 @@ export default function AdminDashboard() {
             <p>Loading...</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead className="border-b">
+              <table className="w-full text-left text-sm">
+                <thead className="border-b bg-gray-50">
                   <tr>
-                    <th className="pb-2">Voucher Code</th>
-                    <th className="pb-2">Data Amount</th>
-                    <th className="pb-2">Price</th>
-                    <th className="pb-2">Status</th>
+                    <th className="pb-3 px-2">Voucher Code</th>
+                    <th className="pb-3 px-2">Data Amount</th>
+                    <th className="pb-3 px-2">Price</th>
+                    <th className="pb-3 px-2">Status</th>
+                    <th className="pb-3 px-2">Balance</th>
+                    <th className="pb-3 px-2">Action</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {vouchers.map((v: any) => (
-                    <tr key={v.id} className="border-b">
-                      <td className="py-2 font-mono">{v.voucher_code}</td>
-                      <td>{v.data_amount}</td>
-                      <td>₦{v.price}</td>
-                      <td>
+                  {vouchers.map((v, idx) => (
+                    <tr key={v.id} className="border-b hover:bg-gray-50">
+                      <td className="py-3 px-2 font-mono text-xs">
+                        {v.voucher_code}
+                      </td>
+                      <td className="py-3 px-2">{v.data_amount}</td>
+                      <td className="py-3 px-2">₦{v.price}</td>
+                      <td className="py-3 px-2">
                         <span
-                          className={`px-3 py-1 rounded text-sm font-bold ${
+                          className={`px-2 py-1 rounded text-xs font-bold ${
                             v.status === 'active'
                               ? 'bg-green-100 text-green-800'
                               : 'bg-red-100 text-red-800'
@@ -121,6 +169,26 @@ export default function AdminDashboard() {
                         >
                           {v.status}
                         </span>
+                      </td>
+                      <td className="py-3 px-2">
+                        {v.balance ? (
+                          <span className="text-blue-600 font-bold">
+                            {v.balance} GB
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">--</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-2">
+                        <button
+                          onClick={() => checkVoucherBalance(v.voucher_code, idx)}
+                          disabled={checkingBalance === v.voucher_code}
+                          className="bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 text-white px-3 py-1 rounded text-xs"
+                        >
+                          {checkingBalance === v.voucher_code
+                            ? 'Checking...'
+                            : 'Check Balance'}
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -132,28 +200,30 @@ export default function AdminDashboard() {
 
         {/* Transactions Section */}
         <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-2xl font-bold mb-4">Transactions</h2>
+          <h2 className="text-2xl font-bold mb-4">Recent Transactions</h2>
           {loading ? (
             <p>Loading...</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead className="border-b">
+              <table className="w-full text-left text-sm">
+                <thead className="border-b bg-gray-50">
                   <tr>
-                    <th className="pb-2">Reference</th>
-                    <th className="pb-2">Amount</th>
-                    <th className="pb-2">Status</th>
-                    <th className="pb-2">Date</th>
+                    <th className="pb-3 px-2">Reference</th>
+                    <th className="pb-3 px-2">Amount</th>
+                    <th className="pb-3 px-2">Status</th>
+                    <th className="pb-3 px-2">Date</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {transactions.map((t: any) => (
-                    <tr key={t.id} className="border-b">
-                      <td className="py-2 font-mono">{t.reference}</td>
-                      <td>₦{t.amount}</td>
-                      <td>
+                  {transactions.map((t) => (
+                    <tr key={t.id} className="border-b hover:bg-gray-50">
+                      <td className="py-3 px-2 font-mono text-xs">
+                        {t.reference}
+                      </td>
+                      <td className="py-3 px-2">₦{t.amount}</td>
+                      <td className="py-3 px-2">
                         <span
-                          className={`px-3 py-1 rounded text-sm font-bold ${
+                          className={`px-2 py-1 rounded text-xs font-bold ${
                             t.status === 'completed'
                               ? 'bg-green-100 text-green-800'
                               : 'bg-yellow-100 text-yellow-800'
@@ -162,7 +232,9 @@ export default function AdminDashboard() {
                           {t.status}
                         </span>
                       </td>
-                      <td>{new Date(t.created_at).toLocaleDateString()}</td>
+                      <td className="py-3 px-2">
+                        {new Date(t.created_at).toLocaleDateString()}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
