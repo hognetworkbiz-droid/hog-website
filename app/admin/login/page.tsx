@@ -28,7 +28,6 @@ export default function AdminLogin() {
 
       const data = await res.json();
 
-      // Store admin token in localStorage
       localStorage.setItem('adminToken', data.token);
       localStorage.setItem('adminUser', JSON.stringify(data.user));
 
@@ -73,7 +72,7 @@ export default function AdminLogin() {
           </div>
 
           {error && (
-            <div className="mb-4 p-3 bg-red-100 text-red-700 rounded">
+            <div className="mb-4 p-3 bg-red-100 text-red-700 rounded text-sm">
               {error}
             </div>
           )}
