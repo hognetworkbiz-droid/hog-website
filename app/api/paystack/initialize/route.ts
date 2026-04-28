@@ -2,12 +2,23 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabaseServer';
 
 const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
+const PAYSTACK_PUBLIC_KEY = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY;
 
 export async function POST(req: NextRequest) {
   try {
+    if (!PAYSTACK_SECRET_KEY) {
+      throw new Error('Paystack secret key not configured');
+    }
+
     const { email, amount, dataAmount } = await req.json();
 
-    // Initialize payment on Paystack (Secret key stays on server)
+    if (!email || !amount) {
+      return NextResponse.json(
+        { error: 'Email and amount are required' },
+        { status: 400 }
+      );
+    }
+
     const response = await fetch('https://api.paystack.co/transaction/initialize', {
       method: 'POST',
       headers: {
@@ -25,7 +36,6 @@ export async function POST(req: NextRequest) {
 
     const data = await response.json();
 
-    // Save pending transaction to database
     if (data.status) {
       await supabaseServer.from('transactions').insert({
         reference: data.data.reference,
@@ -37,6 +47,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(data.data);
   } catch (error) {
+    console.error('Paystack initialization error:', error);
     return NextResponse.json(
       { error: 'Payment initialization failed' },
       { status: 500 }
